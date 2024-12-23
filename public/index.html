@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="he">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>טופס הזמנת גבינות עיזים</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            direction: rtl;
+        }
+        .banner {
+            width: 100%;
+            max-height: 200px;
+            object-fit: contain;
+            margin-bottom: 20px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .form-group label {
+            min-width: 120px;
+            text-align: right;
+        }
+        .form-group input,
+        .form-group select {
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            text-align: right;
+        }
+        .order-line {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+            align-items: center;
+        }
+        .quantity {
+            width: 60px;
+        }
+        button {
+            padding: 10px 20px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-top: 20px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .pickup-options {
+            margin: 10px 0;
+        }
+        .pickup-option {
+            margin: 5px 0;
+        }
+    </style>
+</head>
+<body>
+    <img src="../resources/graphics/top_banner_temp.png" alt="Banner" class="banner">
+    
+    <form id="orderForm">
+        <div class="form-group">
+            <label for="name">שם:</label>
+            <input type="text" id="name" required>
+        </div>
+
+        <div class="form-group">
+            <label for="phone">מספר טלפון:</label>
+            <input type="tel" id="phone" required>
+        </div>
+
+        <div class="form-group">
+            <label>נקודת איסוף:</label>
+            <div id="pickupLocations" class="pickup-options"></div>
+        </div>
+
+        <div class="form-group">
+            <label>הזמנה:</label>
+            <div id="orderLines"></div>
+        </div>
+
+        <button type="submit">שלח הזמנה</button>
+    </form>
+
+    <script>
+        // Store data globally
+        let citiesData = [];
+        let cheeseData = [];
+        let categories = [];
+        let orderLines = [];
+        
+        // Load data from backend
+        async function loadData() {
+    try {
+        const [citiesResponse, cheeseResponse] = await Promise.all([
+            fetch('/api/cities'),
+            fetch('/api/cheese')
+        ]);
+
+        citiesData = await citiesResponse.json();
+        const cheeseResponseData = await cheeseResponse.json();
+
+        // Log the response to debug
+        console.log('Cheese Response Data:', cheeseResponseData);
+
+        // Populate cheeseData
+        cheeseData = {};
+        categories = cheeseResponseData.map(catData => {
+            cheeseData[catData.category] = catData.cheeses.map(cheese => 
+                `${cheese.name} - ${cheese.price}`
+            );
+            return catData.category;
+        });
+
+        console.log('Processed Cheese Data:', cheeseData);
+
+        // Initialize form
+        createPickupLocations();
+        addOrderLine();
+    } catch (error) {
+        console.error('Error loading data:', error);
+        alert('שגיאה בטעינת הנתונים');
+    }
+}
+
+        // Create pickup location radio buttons
+        function createPickupLocations() {
+            const container = document.getElementById('pickupLocations');
+            citiesData.forEach(cityData => {
+                const [city, date] = cityData;
+                const div = document.createElement('div');
+                div.className = 'pickup-option';
+                div.innerHTML = `
+                    <input type="radio" name="pickup" value="${city} - ${date}" id="${city}">
+                    <label for="${city}">${city} - ${date}</label>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        // Add new order line
+        function addOrderLine() {
+    const container = document.getElementById('orderLines');
+    const lineDiv = document.createElement('div');
+    lineDiv.className = 'order-line';
+
+    // Create checkbox
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.className = 'order-checkbox';
+
+    // Attach the handleCheckboxChange event
+    checkbox.addEventListener('change', handleCheckboxChange);
+
+    // Create category dropdown
+    const categorySelect = document.createElement('select');
+    categorySelect.innerHTML = `<option value="">בחר קטגוריה</option>`;
+    categories.forEach(cat => {
+        const option = document.createElement('option');
+        option.value = cat;
+        option.textContent = cat;
+        categorySelect.appendChild(option);
+    });
+
+    // Create cheese dropdown
+    const cheeseSelect = document.createElement('select');
+    cheeseSelect.innerHTML = '<option value="">בחר גבינה</option>';
+
+    // Quantity input
+    const quantityInput = document.createElement('input');
+    quantityInput.type = 'number';
+    quantityInput.className = 'quantity';
+    quantityInput.value = '1';
+    quantityInput.min = '1';
+
+    // Bind event for category selection
+    categorySelect.addEventListener('change', () => {
+        updateCheeseOptions(categorySelect, cheeseSelect, checkbox);
+    });
+
+    // Append elements to the order line
+    lineDiv.appendChild(checkbox);
+    lineDiv.appendChild(categorySelect);
+    lineDiv.appendChild(cheeseSelect);
+    lineDiv.appendChild(quantityInput);
+    container.appendChild(lineDiv);
+
+    // Add to the orderLines array
+    orderLines.push(lineDiv);
+}
+
+        // Update cheese options based on category selection
+        function updateCheeseOptions(categorySelect, cheeseSelect, checkbox) {
+    const selectedCategory = categorySelect.value;
+    console.log('Selected Category:', selectedCategory);
+
+    const cheeses = cheeseData[selectedCategory] || [];
+    console.log('Cheese Options for Selected Category:', cheeses);
+
+    // Populate cheese dropdown
+    cheeseSelect.innerHTML = '<option value="">בחר גבינה</option>';
+    cheeses.forEach(cheese => {
+        const option = document.createElement('option');
+        option.value = cheese.split(' - ')[0]; // Use cheese name as the value
+        option.textContent = cheese; // Display name and price
+        cheeseSelect.appendChild(option);
+    });
+
+    // Add event listener to automatically check the checkbox when a cheese is selected
+    cheeseSelect.addEventListener('change', () => {
+        if (cheeseSelect.value) {
+            checkbox.checked = true; // Automatically check the checkbox
+            checkbox.dispatchEvent(new Event('change')); // Manually trigger the change event
+        } else {
+            checkbox.checked = false; // Uncheck if no cheese is selected
+        }
+    });
+}
+
+
+
+
+        // Handle checkbox change
+        function handleCheckboxChange(event) {
+    const checkbox = event.target;
+
+    // Check if it's the last checkbox in the orderLines array
+    const lastOrderLine = orderLines[orderLines.length - 1];
+    if (checkbox.checked && checkbox.closest('.order-line') === lastOrderLine) {
+        addOrderLine();
+    }
+}
+
+
+        // Handle form submission
+        async function handleSubmit(event) {
+    event.preventDefault();
+    
+    const pickup = document.querySelector('input[name="pickup"]:checked')?.value;
+    if (!pickup) {
+        alert('נא לבחור נקודת איסוף');
+        return;
+    }
+
+    const [pickupCity, pickupDate] = pickup.split(' - ');
+    
+    // Check if at least one item is selected
+    const hasSelectedItems = orderLines.some(line => {
+        const checkbox = line.querySelector('.order-checkbox');
+        return checkbox && checkbox.checked;
+    });
+
+    if (!hasSelectedItems) {
+        alert('נא לבחור לפחות מוצר אחד');
+        return;
+    }
+
+    // Collect order data
+    const orderData = {
+        name: document.getElementById('name').value,
+        phone: document.getElementById('phone').value,
+        orderDate: new Date().toLocaleDateString('he-IL'),
+        pickupCity,
+        pickupDate,
+        quantities: []
+    };
+
+    // Create an array of all cheese names across all categories
+    const allCheeses = [];
+    categories.forEach(category => {
+        const categoryCheeses = cheeseData[category].map(cheese => cheese.split(' - ')[0]);
+        allCheeses.push(...categoryCheeses);
+    });
+
+    // Initialize quantities array with zeros
+    const quantities = new Array(allCheeses.length).fill(0);
+
+    // Collect quantities from order lines
+    orderLines.forEach(line => {
+        const checkbox = line.querySelector('.order-checkbox');
+        if (checkbox && checkbox.checked) {
+            const cheeseSelect = line.querySelector('select:nth-child(3)');
+            const quantityInput = line.querySelector('.quantity');
+            
+            if (cheeseSelect && cheeseSelect.value) {
+                const selectedCheese = cheeseSelect.value;
+                const quantity = parseInt(quantityInput.value) || 0;
+                const cheeseIndex = allCheeses.indexOf(selectedCheese);
+                
+                if (cheeseIndex !== -1) {
+                    quantities[cheeseIndex] = quantity;
+                }
+            }
+        }
+    });
+
+    orderData.quantities = quantities;
+
+    try {
+        const response = await fetch('/api/submit-order', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(orderData),
+        });
+
+        const result = await response.json();
+        if (result.success) {
+            alert(`הזמנה מספר ${result.orderNumber} נשמרה בהצלחה!`);
+            // Reset form
+            event.target.reset();
+            document.getElementById('orderLines').innerHTML = '';
+            addOrderLine();
+        } else {
+            alert('שגיאה בשמירת ההזמנה');
+        }
+    } catch (error) {
+        console.error('Error submitting order:', error);
+        alert('שגיאה בשמירת ההזמנה');
+    }
+}
+
+        // Initialize the form
+        document.getElementById('orderForm').addEventListener('submit', handleSubmit);
+        loadData();
+    </script>
+</body>
+</html>
